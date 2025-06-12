@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Takokat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap" rel="stylesheet">
+    <!-- Tone.js for audio -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <style>
+        body {
+            font-family: 'Fredoka One', cursive;
+            background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+            overflow: hidden;
+            height: 100vh;
+            margin: 0;
+            touch-action: none;
+            position: relative; 
+        }
+        .bg-emoji {
+            position: absolute;
+            font-size: 15vw;
+            opacity: 0.1;
+            user-select: none;
+            z-index: 0;
+        }
+        #game-wrapper {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            z-index: 1;
+        }
+        #game-container {
+            width: 95vw;
+            max-width: 1000px;
+            aspect-ratio: 16 / 9;
+            background-color: #fffefae6;
+            border-radius: 2rem;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            position: relative;
+            overflow: hidden;
+            border: 8px solid white;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+        }
+        .ui-element {
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 0.5rem 1.5rem;
+            border-radius: 9999px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            color: #d65a31;
+            font-size: 1.5rem;
+            border: 4px solid white;
+        }
+        #timer { top: 20px; left: 20px; }
+        #level-counter { top: 20px; right: 80px; } /* Adjusted for mute button */
+        #mute-btn {
+            position: absolute;
+            top: 20px; right: 20px;
+            background-color: rgba(255, 255, 255, 0.8);
+            border-radius: 9999px;
+            border: 4px solid white;
+            width: 50px;
+            height: 50px;
+            font-size: 1.5rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #modal {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0,0,0,0.6);
+            display: flex; justify-content: center; align-items: center;
+            flex-direction: column; color: white; text-align: center;
+            transition: opacity 0.3s ease;
+            pointer-events: none; opacity: 0;
+        }
+        #modal.active { pointer-events: auto; opacity: 1; }
+        #modal-content {
+             background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+             padding: 2rem 3rem; border-radius: 2rem;
+             box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+             border: 6px solid white; width: 90%; max-width: 500px;
+        }
+        #modal h1 { font-size: 3.5rem; margin-bottom: 1rem; text-shadow: 0 4px 8px rgba(0,0,0,0.3); }
+        #modal p { font-size: 1.1rem; max-width: 45ch; margin: 0 auto 1.5rem auto; }
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; text-align: left; }
+        .stat-item { background: rgba(255,255,255,0.1); padding: 0.75rem; border-radius: 0.75rem; }
+        .stat-title { font-size: 0.9rem; opacity: 0.8; display: block; }
+        .stat-value { font-size: 1.5rem; font-weight: bold; }
+        .taco-rating { font-size: 3rem; margin-bottom: 1rem; line-height: 1; }
+        .modal-button {
+            font-size: 1.5rem; padding: 0.8rem 2rem; border-radius: 9999px;
+            border: none; cursor: pointer; color: #4a148c; background-color: white;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2); transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .modal-button:hover { transform: translateY(-5px); box-shadow: 0 8px 20px rgba(0,0,0,0.3); }
+        .gemini-content {
+            background: rgba(0,0,0,0.2);
+            border-radius: 1rem;
+            padding: 1rem;
+            margin-top: 1.5rem;
+            font-style: italic;
+            min-height: 50px;
+        }
+
+        @media (max-width: 768px) {
+            .ui-element { font-size: 1rem; padding: 0.4rem 1rem; border-width: 3px; top: 10px; }
+            #timer { left: 10px; }
+            #level-counter { right: 65px; }
+            #mute-btn { width: 40px; height: 40px; font-size: 1.2rem; right: 10px;}
+            #modal h1 { font-size: 2.5rem; }
+            #modal p { font-size: 1rem; }
+            #modal-content { padding: 1.5rem; }
+            .stats-grid { grid-template-columns: 1fr; gap: 0.5rem; }
+            .stat-item { padding: 0.5rem; }
+            .stat-title { font-size: 0.8rem; }
+            .stat-value { font-size: 1.2rem; }
+            .modal-button { font-size: 1.2rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-emoji" style="top: 10%; left: 15%;">🌮</div>
+    <div class="bg-emoji" style="top: 60%; left: 5%;">🌶️</div>
+    <div class="bg-emoji" style="top: 20%; right: 10%;">🥑</div>
+    <div class="bg-emoji" style="bottom: 10%; right: 20%;">🌯</div>
+    <div class="bg-emoji" style="top: 50%; right: 45%;">🕺</div>
+
+    <div id="game-wrapper">
+        <div id="game-container">
+            <canvas id="game-canvas"></canvas>
+            <div id="timer" class="ui-element">Time: 0.0s</div>
+            <div id="level-counter" class="ui-element">Level: 1</div>
+            <button id="mute-btn">🔊</button>
+            <div id="modal">
+                <div id="modal-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        window.onload = () => {
+            const canvas = document.getElementById('game-canvas'), ctx = canvas.getContext('2d'),
+                  gameContainer = document.getElementById('game-container'),
+                  timerEl = document.getElementById('timer'), levelCounterEl = document.getElementById('level-counter'),
+                  modal = document.getElementById('modal'), modalContent = document.getElementById('modal-content'),
+                  muteBtn = document.getElementById('mute-btn');
+
+            let cats = [], particles = [], gameActive = false, gameOver = false, level = 1, totalCatsExploded = 0,
+                tacoPartyTime = 0, levelStartTime = 0, animationFrameId, audioInitialized = false;
+
+            // NEW: State variables for the stall timer
+            let stallTimer = 0;
+            let chainReactionStarted = false;
+
+            const CAT_RADIUS = 25, EXPLOSION_RADIUS = 120, INITIAL_EXPLOSION_TIME = 10 * 1000,
+                  SUBSEQUENT_EXPLOSION_TIME = 1.2 * 1000,
+                  CAT_EMOJIS = ['🐱', '🐈', '😺', '😸', '😻', '😽'], TAKOKAT_EMOJI = '😼',
+                  TACO_PARTICLES = ['🥬', '🧀', '�', '🌮', '🌶️'];
+            
+            const SASSY_QUOTES = [
+                "Honestly, I've seen better explosions from a dropped soda.",
+                "Was that a chain reaction or just a series of mild disappointments?",
+                "My taco filling has more explosive potential than that.",
+                "I guess not everyone has the stomach for this.",
+                "Well, *that* was a waste of perfectly good taco meat.",
+                "Let's try that again, but this time with a bit more... oomph.",
+                "Some cats just want to watch the world *not* explode, I guess.",
+                "I've had spicier salsa. And it was mild.",
+                "You call that a fiesta? I call it a siesta.",
+                "Next time, I'm just going to eat the tacos myself."
+            ];
+
+            const WIN_HEADLINES = [
+                "Local Cat Causes 'Tacopocalypse,' Film Rights Already Sold!",
+                "Fiesta Fallout: Entire Neighborhood Covered in Delicious Shrapnel!",
+                "Takokat's Taco Tantrum Sets New World Record for Snack-Based Explosions!",
+                "Aftermath of Feline Fiesta Declared 'Deliciously Disastrous!'",
+                "Cheese and Lettuce Prices Skyrocket Following Recent 'Cat-aclysm!'",
+                "Mysterious Burrito-Related Booms Baffle Local Authorities!",
+                "One Cat's Lunch Becomes Every Cat's Feast in Startling Chain Reaction!",
+                "Experts Confirm: The Most Delicious Disasters Are Taco-Flavored.",
+                "The 'Big Burrito' Theory Proven by One Very Gassy Cat.",
+                "Neighborhood Watch Reports Raining Lettuce, Calls it 'A Mild Inconvenience.'"
+            ];
+
+
+            const audio = {};
+
+            function initAudio() {
+                if (audioInitialized) return;
+                audio.explosionSound = new Tone.PolySynth(Tone.NoiseSynth, {
+                    noise: { type: 'white' },
+                    envelope: { attack: 0.01, decay: 0.4, sustain: 0, release: 0.4 }
+                }).toDestination();
+                audio.gorgingSound = new Tone.PolySynth(Tone.Synth, {
+                    oscillator: { type: 'sine' },
+                    envelope: { attack: 0.005, decay: 0.1, sustain: 0.1, release: 0.1 }
+                }).toDestination();
+                audio.winSound = new Tone.PolySynth(Tone.Synth, {
+                    oscillator: { type: 'triangle' },
+                    envelope: { attack: 0.01, decay: 0.2, sustain: 0.2, release: 0.5 }
+                }).toDestination();
+                
+                const musicSynth = new Tone.Synth().toDestination();
+                audio.music = new Tone.Loop(time => {
+                    const notes = ['C4', 'E4', 'G4', 'A4', 'G4', 'E4', 'C4'];
+                    musicSynth.triggerAttackRelease(notes[Math.floor(Math.random() * notes.length)], '8n', time);
+                }, "4n").start(0);
+                audioInitialized = true;
+            }
+
+            muteBtn.addEventListener('click', () => {
+                if (!audioInitialized) return;
+                Tone.Destination.mute = !Tone.Destination.mute;
+                muteBtn.textContent = Tone.Destination.mute ? '🔇' : '🔊';
+            });
+
+            class Cat {
+                constructor(x, y, isTakokat = false) {
+                    this.x = x; this.y = y; this.isTakokat = isTakokat;
+                    this.emoji = isTakokat ? TAKOKAT_EMOJI : CAT_EMOJIS[Math.floor(Math.random() * CAT_EMOJIS.length)];
+                    this.isExploding = isTakokat; this.isGorging = false; this.isGone = false;
+                    this.explosionTimer = isTakokat ? INITIAL_EXPLOSION_TIME : 0; this.size = 50;
+                }
+                draw() {
+                    if (this.isGone) return;
+                    ctx.font = `${this.size}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.fillText(this.emoji, this.x, this.y);
+                    if (this.isExploding) {
+                        const timerTotal = this.isTakokat ? INITIAL_EXPLOSION_TIME : SUBSEQUENT_EXPLOSION_TIME;
+                        const progress = this.explosionTimer / timerTotal;
+                        ctx.beginPath();
+                        ctx.arc(this.x, this.y, this.size * 0.7, -Math.PI / 2, -Math.PI / 2 + (2 * Math.PI * (1 - progress)), false);
+                        ctx.strokeStyle = `rgba(214, 90, 49, ${1 - progress * 0.5})`; ctx.lineWidth = 8; ctx.stroke();
+                    }
+                }
+                update(deltaTime) {
+                    if (this.isExploding && !this.isGone) {
+                        this.explosionTimer -= deltaTime;
+                        if (this.explosionTimer <= 0) this.explode();
+                    }
+                }
+                explode() {
+                    this.isGone = true; totalCatsExploded++; createExplosion(this.x, this.y);
+                    if(audio.explosionSound) audio.explosionSound.triggerAttackRelease('8n');
+                    
+                    // NEW: If Takokat explodes, the chain reaction has officially started.
+                    if (this.isTakokat) {
+                        chainReactionStarted = true;
+                    }
+
+                    cats.forEach(otherCat => {
+                        if (!otherCat.isGone && !otherCat.isExploding && !otherCat.isGorging) {
+                            if (Math.hypot(this.x - otherCat.x, this.y - otherCat.y) < EXPLOSION_RADIUS) {
+                                otherCat.isGorging = true;
+                                if(audio.gorgingSound) audio.gorgingSound.triggerAttackRelease('C5', '8n');
+                                setTimeout(() => {
+                                    otherCat.isExploding = true;
+                                    otherCat.isGorging = false;
+                                }, 500);
+                            }
+                        }
+                    });
+                }
+            }
+            class Particle {
+                constructor(x, y) {
+                    this.x = x; this.y = y; this.emoji = TACO_PARTICLES[Math.floor(Math.random() * TACO_PARTICLES.length)];
+                    this.size = Math.random() * 20 + 15; this.vx = (Math.random() - 0.5) * 8; this.vy = (Math.random() - 0.5) * 8;
+                    this.alpha = 1.0; this.rotation = Math.random() * Math.PI * 2; this.rotationSpeed = (Math.random() - 0.5) * 0.2;
+                }
+                update() { this.x += this.vx; this.y += this.vy; this.vy += 0.1; this.alpha -= 0.02; this.rotation += this.rotationSpeed; }
+                draw() {
+                    ctx.save(); ctx.globalAlpha = this.alpha; ctx.translate(this.x, this.y); ctx.rotate(this.rotation);
+                    ctx.font = `${this.size}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.fillText(this.emoji, 0, 0); ctx.restore();
+                }
+            }
+
+            function startLevel(newLevel) {
+                level = newLevel; gameActive = true; gameOver = false;
+                cats = []; particles = []; levelStartTime = performance.now();
+                // NEW: Reset stall timer state for new level
+                stallTimer = 0;
+                chainReactionStarted = false;
+
+                canvas.width = gameContainer.clientWidth; canvas.height = gameContainer.clientHeight;
+                levelCounterEl.textContent = `Level: ${level}`;
+                
+                const numCatsToPlace = 4 + level * 2;
+                const takokat = new Cat(Math.random() * (canvas.width - 200) + 100, Math.random() * (canvas.height - 200) + 100, true);
+                cats.push(takokat);
+                
+                let placedCats = [takokat];
+                while(cats.length < numCatsToPlace + 1) {
+                    let anchorCat = placedCats[Math.floor(Math.random() * placedCats.length)];
+                    let angle = Math.random() * 2 * Math.PI, distance = CAT_RADIUS * 3 + Math.random() * (EXPLOSION_RADIUS - CAT_RADIUS * 2.5);
+                    let x = anchorCat.x + Math.cos(angle) * distance, y = anchorCat.y + Math.sin(angle) * distance;
+                    let validPosition = true;
+                    if (x < CAT_RADIUS || x > canvas.width - CAT_RADIUS || y < CAT_RADIUS || y > canvas.height - CAT_RADIUS) {
+                        validPosition = false;
+                    } else {
+                        for(const cat of cats) { if (Math.hypot(x - cat.x, y - cat.y) < CAT_RADIUS * 2.2) { validPosition = false; break; } }
+                    }
+                    if(validPosition) { const newCat = new Cat(x, y); cats.push(newCat); placedCats.push(newCat); }
+                }
+                modal.classList.remove('active');
+            }
+
+            // UPDATED: Game-ending logic now includes the stall timer.
+            function checkEndConditions(deltaTime) {
+                if (gameOver) return;
+
+                const catsLeft = cats.filter(c => !c.isGone).length;
+                if (catsLeft === 0) {
+                    endLevel(true); // Win condition
+                    return;
+                }
+
+                const isChainActive = cats.some(c => c.isExploding || c.isGorging);
+
+                if (isChainActive) {
+                    stallTimer = 0; // Reset stall timer while action is happening
+                } else {
+                    // This is a lull period
+                    if (chainReactionStarted) {
+                        // The first explosion happened, now we check for stalls.
+                        stallTimer += deltaTime;
+                        if (stallTimer >= 5000) {
+                            endLevel(false, 'stall'); // Lose due to stall
+                        }
+                    } else if (cats.find(c => c.isTakokat)?.isGone) {
+                        // Takokat has exploded but the chain hasn't started (she missed). Immediate loss.
+                        endLevel(false, 'no_chain');
+                    }
+                }
+            }
+
+
+            function endLevel(isWin, reason = null) {
+                gameOver = true; gameActive = false;
+                const levelTime = (performance.now() - levelStartTime) / 1000;
+                tacoPartyTime += levelTime;
+                if (audio.music && audio.music.state === 'started') audio.music.stop();
+                if (isWin) showWinModal(levelTime); else showLoseModal(levelTime, reason);
+            }
+            
+            function showWinModal(levelTime) {
+                if (audio.winSound) audio.winSound.triggerAttackRelease('C6', '0.5s');
+
+                const scoreTime = levelTime - (INITIAL_EXPLOSION_TIME / 1000);
+                const numCatsInLevel = 4 + level * 2 + 1;
+                const threeTacoTime = numCatsInLevel * 0.7, twoTacoTime = numCatsInLevel * 1.2;
+                let tacoRating = 1;
+                if (scoreTime > 0 && scoreTime < threeTacoTime) tacoRating = 3;
+                else if (scoreTime > 0 && scoreTime < twoTacoTime) tacoRating = 2;
+                const tacoDisplay = '🌮'.repeat(tacoRating) + '▫️'.repeat(3 - tacoRating);
+                const headline = WIN_HEADLINES[Math.floor(Math.random() * WIN_HEADLINES.length)];
+
+                modalContent.innerHTML = `<h1>Level ${level} Cleared!</h1><div class="taco-rating">${tacoDisplay}</div><div class="stats-grid"><div class="stat-item"><span class="stat-title">Level Time</span><span class="stat-value">${levelTime.toFixed(1)}s</span></div><div class="stat-item"><span class="stat-title">Total Cats</span><span class="stat-value">${totalCatsExploded}</span></div></div><div class="gemini-content">✨ ${headline}</div><button onclick="window.nextLevel()" class="modal-button">Next Level</button>`;
+                modal.classList.add('active');
+            }
+
+            function showLoseModal(levelTime, reason = 'no_chain') {
+                const catsRemaining = cats.filter(c => !c.isGone).length;
+                const thought = SASSY_QUOTES[Math.floor(Math.random() * SASSY_QUOTES.length)];
+                
+                // NEW: Custom message for stall failures
+                let loseMessage = `The feast ended too soon! You left ${catsRemaining} hungry cat${catsRemaining > 1 ? 's' : ''}.`;
+                if (reason === 'stall') {
+                    loseMessage = `The fiesta fizzled out! 😿 The taco chain reaction stopped.`;
+                }
+
+                modalContent.innerHTML = `<h1>Game Over</h1><p>${loseMessage}</p><div class="stats-grid"><div class="stat-item"><span class="stat-title">Levels Passed</span><span class="stat-value">${level - 1}</span></div><div class="stat-item"><span class="stat-title">Total Cats</span><span class="stat-value">${totalCatsExploded}</span></div><div class="stat-item" style="grid-column: span 2;"><span class="stat-title">Total Taco Party Time</span><span class="stat-value">${tacoPartyTime.toFixed(1)}s</span></div></div><div class="gemini-content">✨ "${thought}"</div><button onclick="window.restartGame()" class="modal-button">Play Again</button>`;
+                modal.classList.add('active');
+            }
+
+            function showStartModal() {
+                gameActive = false; gameOver = true;
+                modalContent.innerHTML = `<h1>Takokat!</h1><p>Drag Takokat (😼) near her friends to start a delicious chain reaction. Clear all the cats to win!</p><button onclick="window.firstGameStart()" class="modal-button">Start Game</button>`;
+                modal.classList.add('active');
+            }
+
+            function createExplosion(x, y) { for (let i = 0; i < 25; i++) particles.push(new Particle(x, y)); }
+            function updateUI(timestamp) { if(gameActive) { timerEl.textContent = `Time: ${((timestamp - levelStartTime) / 1000).toFixed(1)}s`; } }
+            
+            let lastTimestamp = 0;
+            function gameLoop(timestamp) {
+                if (!lastTimestamp) lastTimestamp = timestamp;
+                const deltaTime = timestamp - lastTimestamp;
+                lastTimestamp = timestamp;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                particles.forEach(p => { p.update(); p.draw(); });
+                particles = particles.filter(p => p.alpha > 0);
+                cats.forEach(cat => { if(gameActive) cat.update(deltaTime); cat.draw(); });
+                // Pass deltaTime to checkEndConditions
+                if(gameActive) { updateUI(timestamp); checkEndConditions(deltaTime); }
+                animationFrameId = requestAnimationFrame(gameLoop);
+            }
+
+            let isDragging = false, draggedCat = null;
+            function onDragStart(x, y) {
+                const takokat = cats.find(c => c.isTakokat);
+                if (gameActive && !gameOver && takokat && !takokat.isGone && cats.filter(c => c.isExploding).length <= 1 && Math.hypot(x - takokat.x, y - takokat.y) < CAT_RADIUS * 1.5) {
+                    isDragging = true; draggedCat = takokat; canvas.style.cursor = 'grabbing';
+                }
+            }
+            function onDragMove(x, y) {
+                if (isDragging && draggedCat) {
+                    draggedCat.x = Math.max(CAT_RADIUS, Math.min(canvas.width - CAT_RADIUS, x));
+                    draggedCat.y = Math.max(CAT_RADIUS, Math.min(canvas.height - CAT_RADIUS, y));
+                }
+            }
+            function onDragEnd() { if (isDragging) { isDragging = false; draggedCat = null; canvas.style.cursor = 'grab'; } }
+            
+            canvas.addEventListener('mousedown', e => { const r = canvas.getBoundingClientRect(); onDragStart(e.clientX - r.left, e.clientY - r.top); });
+            canvas.addEventListener('mousemove', e => { const r = canvas.getBoundingClientRect(); onDragMove(e.clientX - r.left, e.clientY - r.top); });
+            ['mouseup', 'mouseleave'].forEach(evt => canvas.addEventListener(evt, onDragEnd));
+            canvas.addEventListener('touchstart', e => { e.preventDefault(); const r = canvas.getBoundingClientRect(); onDragStart(e.touches[0].clientX - r.left, e.touches[0].clientY - r.top); }, { passive: false });
+            canvas.addEventListener('touchmove', e => { e.preventDefault(); const r = canvas.getBoundingClientRect(); onDragMove(e.touches[0].clientX - r.left, e.touches[0].clientY - r.top); }, { passive: false });
+            canvas.addEventListener('touchend', e => { e.preventDefault(); onDragEnd(); });
+
+            window.firstGameStart = async () => {
+                await Tone.start();
+                initAudio();
+                window.restartGame();
+            }
+            window.restartGame = function() {
+                level = 1; totalCatsExploded = 0; tacoPartyTime = 0;
+                if(audio.music && audio.music.state !== 'started') audio.music.start(0);
+                startLevel(1);
+            }
+            window.nextLevel = function() {
+                if(audio.music && audio.music.state !== 'started') audio.music.start(0);
+                startLevel(level + 1);
+            }
+
+            showStartModal();
+            gameLoop(0);
+        };
+    </script>
+</body>
+</html>
+�
